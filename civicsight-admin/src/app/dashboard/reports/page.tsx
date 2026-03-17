@@ -167,7 +167,7 @@ export default function ReportsPage() {
 
     // Filter logic
     const filteredReports = reports.filter((r) => {
-        if (workerFilter && r.assigned_worker_id !== workerFilter) return false;
+        if (workerFilter && r.assigned_worker_id !== workerFilter && r.assignment?.worker_id !== workerFilter) return false;
         if (citizenFilter && r.citizen_id !== citizenFilter) return false;
         if (statusFilter !== "all" && r.status !== statusFilter) return false;
         if (categoryFilter !== "all" && r.category?.category_group !== categoryFilter) return false;
@@ -198,7 +198,7 @@ export default function ReportsPage() {
 
     // Base reports to count from (respecting user filter)
     const baseReports = reports.filter((r) => {
-        if (workerFilter && r.assigned_worker_id !== workerFilter) return false;
+        if (workerFilter && r.assigned_worker_id !== workerFilter && r.assignment?.worker_id !== workerFilter) return false;
         if (citizenFilter && r.citizen_id !== citizenFilter) return false;
         return true;
     });
