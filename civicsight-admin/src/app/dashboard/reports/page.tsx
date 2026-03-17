@@ -120,6 +120,7 @@ const ITEMS_PER_PAGE = 6;
 export default function ReportsPage() {
     const searchParams = useSearchParams();
     const workerFilter = searchParams.get("worker");
+    const citizenFilter = searchParams.get("citizen");
     const [reports, setReports] = useState<ReportWithDetails[]>([]);
     const [workers, setWorkers] = useState<WorkerWithProfile[]>([]);
     const [categories, setCategories] = useState<DbCategory[]>([]);
@@ -167,6 +168,7 @@ export default function ReportsPage() {
     // Filter logic
     const filteredReports = reports.filter((r) => {
         if (workerFilter && r.assigned_worker_id !== workerFilter) return false;
+        if (citizenFilter && r.citizen_id !== citizenFilter) return false;
         if (statusFilter !== "all" && r.status !== statusFilter) return false;
         if (categoryFilter !== "all" && r.category?.category_group !== categoryFilter) return false;
         if (severityFilter !== "all" && getSeverityLabel(r.ai_severity).toLowerCase() !== severityFilter) return false;
@@ -194,14 +196,21 @@ export default function ReportsPage() {
         setCurrentPage(1);
     };
 
+    // Base reports to count from (respecting user filter)
+    const baseReports = reports.filter((r) => {
+        if (workerFilter && r.assigned_worker_id !== workerFilter) return false;
+        if (citizenFilter && r.citizen_id !== citizenFilter) return false;
+        return true;
+    });
+
     const statusCounts = {
-        all: reports.length,
-        pending: reports.filter((r) => r.status === "pending").length,
-        open: reports.filter((r) => r.status === "open").length,
-        assigned: reports.filter((r) => r.status === "assigned").length,
-        in_progress: reports.filter((r) => r.status === "in_progress").length,
-        resolved: reports.filter((r) => r.status === "resolved").length,
-        closed: reports.filter((r) => r.status === "closed").length,
+        all: baseReports.length,
+        pending: baseReports.filter((r) => r.status === "pending").length,
+        open: baseReports.filter((r) => r.status === "open").length,
+        assigned: baseReports.filter((r) => r.status === "assigned").length,
+        in_progress: baseReports.filter((r) => r.status === "in_progress").length,
+        resolved: baseReports.filter((r) => r.status === "resolved").length,
+        closed: baseReports.filter((r) => r.status === "closed").length,
     };
 
     // Update report status
