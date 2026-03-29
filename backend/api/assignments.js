@@ -12,6 +12,17 @@ module.exports = cors(async function handler(req, res) {
       return res.status(400).json({ error: "reportId, workerId, and adminId required" });
     }
 
+    // Block assignment if report is rejected
+    const { data: report } = await supabase
+      .from("reports")
+      .select("status")
+      .eq("id", reportId)
+      .single();
+
+    if (report?.status === "rejected") {
+      return res.status(400).json({ error: "Cannot assign a worker to a rejected report" });
+    }
+
     // 1. Create/upsert assignment
     const { error: assignErr } = await supabase
       .from("worker_assignments")

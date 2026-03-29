@@ -99,6 +99,63 @@ function getSeverityLabel(severity: number | null): string {
     return "Low";
 }
 
+// Category icon mapping based on category name / group
+function getCategoryIcon(categoryName?: string, categoryGroup?: string): string {
+    const name = (categoryName || "").toLowerCase();
+    const group = (categoryGroup || "").toLowerCase();
+
+    // Specific category icons
+    const categoryIcons: Record<string, string> = {
+        pothole: "🕳️",
+        "road crack & surface damage": "🛣️",
+        "sidewalk & curb damage": "🚶",
+        "faded road markings": "🚧",
+        "damaged road sign": "🪧",
+        "damaged traffic signal": "🚦",
+        "water leak": "💧",
+        "flooding & standing water": "🌊",
+        "blocked catch basin": "🔲",
+        "manhole issue": "⚠️",
+        "overflowing litter bin": "🗑️",
+        "illegal dumping": "🚮",
+        graffiti: "🎨",
+        "debris on road": "⚠️",
+        "fallen tree or branch": "🌳",
+        "dead or hazardous tree": "🪵",
+        "tree root damage": "🌿",
+        "damaged playground equipment": "🛝",
+        "damaged park amenity": "🏞️",
+        "damaged bus shelter": "🚏",
+        "dead animal": "🐾",
+        "snow or ice on road": "❄️",
+        "snow or ice on sidewalk": "🧊",
+        "property standards violation": "🏚️",
+        "unsafe construction site": "🏗️",
+        "abandoned vehicle": "🚗",
+        "electrical hazard": "⚡",
+        "damaged utility box": "📦",
+        "accessibility barrier": "♿",
+    };
+
+    if (categoryIcons[name]) return categoryIcons[name];
+
+    // Fallback to group icons
+    const groupIcons: Record<string, string> = {
+        "roads & transportation": "🛣️",
+        "water & drainage": "💧",
+        "waste & cleanliness": "🗑️",
+        "trees & green spaces": "🌳",
+        "parks & public spaces": "🏞️",
+        "winter maintenance": "❄️",
+        "property & safety": "🏠",
+        "utilities & infrastructure": "⚡",
+    };
+
+    if (groupIcons[group]) return groupIcons[group];
+
+    return "📋";
+}
+
 function getPriorityFromSeverity(severity: number | null): string {
     if (!severity) return "normal";
     if (severity >= 5) return "critical";
@@ -561,15 +618,17 @@ export default function ReportsPage() {
                                                     <Eye className="w-3.5 h-3.5 mr-2" />
                                                     View Details
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setAssignDialog(report);
-                                                    }}
-                                                >
-                                                    <UserPlus className="w-3.5 h-3.5 mr-2" />
-                                                    Assign Worker
-                                                </DropdownMenuItem>
+                                                {report.status !== "rejected" && (
+                                                    <DropdownMenuItem
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setAssignDialog(report);
+                                                        }}
+                                                    >
+                                                        <UserPlus className="w-3.5 h-3.5 mr-2" />
+                                                        Assign Worker
+                                                    </DropdownMenuItem>
+                                                )}
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem
                                                     onClick={(e) => {
@@ -703,6 +762,22 @@ export default function ReportsPage() {
                                 </TabsList>
 
                                 <TabsContent value="details" className="space-y-4 mt-4">
+                                    {/* Report Image / Category Icon */}
+                                    <div className="w-full h-48 rounded-lg overflow-hidden bg-muted/30 border border-border/50">
+                                        {selectedReport.images && selectedReport.images.length > 0 ? (
+                                            <img
+                                                src={selectedReport.images[0].image_url}
+                                                alt={`Report #${selectedReport.report_number}`}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                                                <span className="text-4xl">{getCategoryIcon(selectedReport.category?.name, selectedReport.category?.category_group)}</span>
+                                                <p className="text-xs">{selectedReport.category?.name || selectedReport.ai_category_name || "Uncategorized"}</p>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* Description */}
                                     <div>
                                         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
@@ -836,6 +911,7 @@ export default function ReportsPage() {
                                             variant="outline"
                                             size="sm"
                                             className="text-xs h-9 gap-1.5"
+                                            disabled={selectedReport.status === "rejected"}
                                             onClick={() => {
                                                 setAssignDialog(selectedReport);
                                             }}

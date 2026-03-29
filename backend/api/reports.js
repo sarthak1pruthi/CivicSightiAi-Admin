@@ -113,15 +113,44 @@ module.exports = cors(async function handler(req, res) {
         await supabase.from("worker_assignments").update(assignmentUpdate).eq("report_id", reportId);
       }
 
-      // Handle rejection — update assignment with rejected status and admin note
+      // Handle rejection — remove assigned worker and delete assignment
       if (status === "rejected") {
-        const assignmentUpdate = {
-          assignment_status: "rejected",
-          rejected_at: new Date().toISOString(),
-          last_update_at: new Date().toISOString(),
+        // Check if a worker was assigned
+        const { data: existingAssignment } = await supabase
+          .from("worker_assignments")
+          .select("worker_id")
+          .eq("report_id", reportId)
+          .single();
+
+        if (existingAssignment?.worker_id) {
+          // Decrement worker's current task count
+          const { data: profile } = await supabase
+            .from("worker_profiles")
+            .select("current_task_count")
+            .eq("worker_id", existingAssignment.worker_id)
+            .single();
+
+          if (profile && profile.current_task_count > 0) {
+            await supabase
+              .from("worker_profiles")
+              .update({
+                current_task_count: profile.current_task_count - 1,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("worker_id", existingAssignment.worker_id);
+          }
+
+          // Delete the assignment row
+          await supabase.from("worker_assignments").delete().eq("report_id", reportId);
+        }
+
+        // Clear worker reference on the report and store rejection note
+        const rejectionUpdate = {
+          assigned_worker_id: null,
+          assigned_at: null,
+          rejection_note: rejectionNote || null,
         };
-        if (rejectionNote) assignmentUpdate.assignment_note = rejectionNote;
-        await supabase.from("worker_assignments").update(assignmentUpdate).eq("report_id", reportId);
+        await supabase.from("reports").update(rejectionUpdate).eq("id", reportId);
       }
 
       return res.json({ success: true });
