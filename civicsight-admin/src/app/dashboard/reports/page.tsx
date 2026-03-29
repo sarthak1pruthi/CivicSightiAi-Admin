@@ -342,7 +342,7 @@ export default function ReportsPage() {
                         {status === "all" ? "All Reports" : status.replace("_", " ")}
                         <Badge
                             variant="secondary"
-                            className="ml-1.5 text-[10px] px-1.5 py-0 min-w-[20px] justify-center"
+                            className="ml-1.5 text-[10px] px-1.5 py-0 min-w-5 justify-center"
                         >
                             {count}
                         </Badge>
@@ -371,7 +371,7 @@ export default function ReportsPage() {
                                 value={categoryFilter}
                                 onValueChange={(v) => handleFilterChange(setCategoryFilter, v)}
                             >
-                                <SelectTrigger className="w-[140px] h-9 text-xs">
+                                <SelectTrigger className="w-35 h-9 text-xs">
                                     <SelectValue placeholder="Category" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -385,7 +385,7 @@ export default function ReportsPage() {
                                 value={severityFilter}
                                 onValueChange={(v) => handleFilterChange(setSeverityFilter, v)}
                             >
-                                <SelectTrigger className="w-[120px] h-9 text-xs">
+                                <SelectTrigger className="w-30 h-9 text-xs">
                                     <SelectValue placeholder="Severity" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -460,7 +460,7 @@ export default function ReportsPage() {
                                     <TableCell className="text-xs font-mono font-medium text-primary pl-6">
                                         RPT-{report.report_number}
                                     </TableCell>
-                                    <TableCell className="text-sm font-medium max-w-[220px] truncate">
+                                    <TableCell className="text-sm font-medium max-w-55 truncate">
                                         {report.description.slice(0, 60)}{report.description.length > 60 ? "..." : ""}
                                     </TableCell>
                                     <TableCell className="text-xs text-muted-foreground">
@@ -753,7 +753,7 @@ export default function ReportsPage() {
                                             value={detailStatus}
                                             onValueChange={(v) => setDetailStatus(v)}
                                         >
-                                            <SelectTrigger className="w-[160px] h-9 text-xs">
+                                            <SelectTrigger className="w-40 h-9 text-xs">
                                                 <SelectValue placeholder="Update Status" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -788,7 +788,7 @@ export default function ReportsPage() {
                                     <Card className="bg-primary/5 border-primary/20">
                                         <CardContent className="p-4">
                                             <div className="flex items-start gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                                                     <span className="text-sm">🤖</span>
                                                 </div>
                                                 <div className="space-y-2">
@@ -876,10 +876,10 @@ export default function ReportsPage() {
                                                 className="flex items-start gap-3 relative"
                                             >
                                                 <div
-                                                    className={`w-2.5 h-2.5 rounded-full ${item.dot} mt-1.5 flex-shrink-0 ring-4 ring-background`}
+                                                    className={`w-2.5 h-2.5 rounded-full ${item.dot} mt-1.5 shrink-0 ring-4 ring-background`}
                                                 />
                                                 {i < arr.length - 1 && (
-                                                    <div className="absolute left-[4px] top-4 w-[1px] h-[calc(100%+8px)] bg-border" />
+                                                    <div className="absolute left-1 top-4 w-px h-[calc(100%+8px)] bg-border" />
                                                 )}
                                                 <div>
                                                     <p className="text-sm font-medium">{item.action}</p>
@@ -927,7 +927,7 @@ export default function ReportsPage() {
                             onChange={(e) => setAssignNote(e.target.value)}
                         />
                         <Separator />
-                        <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                        <div className="space-y-2 max-h-70 overflow-y-auto">
                             {workers.length === 0 && (
                                 <p className="text-xs text-muted-foreground text-center py-4">No workers found</p>
                             )}
