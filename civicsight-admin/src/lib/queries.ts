@@ -17,11 +17,12 @@ export async function fetchReports(): Promise<ReportWithDetails[]> {
 
 export async function updateReportStatus(
   reportId: string,
-  status: ReportStatus
+  status: ReportStatus,
+  rejectionNote?: string
 ) {
   await apiFetch("/api/reports", {
     method: "PATCH",
-    body: JSON.stringify({ reportId, status }),
+    body: JSON.stringify({ reportId, status, rejectionNote }),
   });
 }
 

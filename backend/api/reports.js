@@ -92,7 +92,7 @@ module.exports = cors(async function handler(req, res) {
 
   if (req.method === "PATCH") {
     try {
-      const { reportId, status } = req.body;
+      const { reportId, status, rejectionNote } = req.body;
       if (!reportId || !status) return res.status(400).json({ error: "reportId and status required" });
 
       const updates = { status, updated_at: new Date().toISOString() };
@@ -106,10 +106,21 @@ module.exports = cors(async function handler(req, res) {
       // Sync assignment status with report status
       if (status === "resolved" || status === "closed") {
         const assignmentUpdate = {
-          assignment_status: status,
+          assignment_status: status === "resolved" ? "completed" : status,
           last_update_at: new Date().toISOString(),
         };
         if (status === "resolved") assignmentUpdate.completed_at = new Date().toISOString();
+        await supabase.from("worker_assignments").update(assignmentUpdate).eq("report_id", reportId);
+      }
+
+      // Handle rejection — update assignment with rejected status and admin note
+      if (status === "rejected") {
+        const assignmentUpdate = {
+          assignment_status: "rejected",
+          rejected_at: new Date().toISOString(),
+          last_update_at: new Date().toISOString(),
+        };
+        if (rejectionNote) assignmentUpdate.assignment_note = rejectionNote;
         await supabase.from("worker_assignments").update(assignmentUpdate).eq("report_id", reportId);
       }
 
