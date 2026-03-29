@@ -93,7 +93,7 @@ export function Sidebar() {
                 </div>
                 {!collapsed && (
                     <div className="flex flex-col overflow-hidden">
-                        <span className="text-sm font-bold tracking-tight text-sidebar-primary-foreground">
+                        <span className="text-sm font-bold tracking-tight text-sidebar-foreground">
                             CivicSightAI
                         </span>
                         <span className="text-[10px] font-medium text-sidebar-foreground/50 uppercase tracking-widest">
@@ -119,7 +119,7 @@ export function Sidebar() {
                             className={cn(
                                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-smooth group relative",
                                 isActive
-                                    ? "bg-sidebar-accent text-sidebar-primary-foreground shadow-sm"
+                                    ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
                                     : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
                             )}
                         >
