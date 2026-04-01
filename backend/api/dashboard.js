@@ -7,15 +7,15 @@ module.exports = cors(async function handler(req, res) {
   const supabase = getSupabase();
 
   try {
-    // ?type=notifications — recent reports for notification bell
+    // ?type=notifications — today's report summary for notification bell
     if (req.query.type === "notifications") {
-      const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
       const { data, error } = await supabase
         .from("reports")
         .select("id, report_number, status, ai_severity, reported_at, resolved_at")
-        .gte("reported_at", cutoff)
-        .order("reported_at", { ascending: false })
-        .limit(30);
+        .gte("reported_at", todayStart.toISOString())
+        .order("reported_at", { ascending: false });
 
       if (error) return res.status(500).json({ error: error.message });
       return res.json(data || []);

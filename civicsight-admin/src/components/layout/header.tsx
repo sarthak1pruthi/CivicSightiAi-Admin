@@ -139,20 +139,31 @@ export function Header() {
                 }>>("/api/dashboard?type=notifications");
 
                 const notifs: NotifType[] = [];
+
+                // Count today's reports by category
+                let highSeverityCount = 0;
+                let pendingCount = 0;
+                let resolvedCount = 0;
+                let totalToday = data.length;
+
                 for (const r of data) {
-                    const rpt = `RPT-${String(r.report_number ?? 0).padStart(4, "0")}`;
                     const isResolved = ["resolved", "closed"].includes(r.status);
-                    const resolvedRecently = r.resolved_at && Date.now() - new Date(r.resolved_at).getTime() < 3 * 60 * 60 * 1000;
+                    if ((r.ai_severity ?? 0) >= 4 && !isResolved) highSeverityCount++;
+                    if ((r.status === "pending" || r.status === "open") && !isResolved) pendingCount++;
+                    if (isResolved) resolvedCount++;
+                }
 
-                    if ((r.ai_severity ?? 0) >= 4 && !isResolved) {
-                        notifs.push({ id: `h-${r.id}`, badgeVariant: "destructive", badgeLabel: "High", time: timeAgo(r.reported_at), message: `High-severity ${rpt} needs attention`, read: false });
-                    } else if ((r.status === "pending" || r.status === "open") && !isResolved) {
-                        notifs.push({ id: `p-${r.id}`, badgeVariant: "secondary", badgeLabel: "Pending", time: timeAgo(r.reported_at), message: `${rpt} is awaiting assignment`, read: false });
-                    } else if (isResolved && resolvedRecently) {
-                        notifs.push({ id: `r-${r.id}`, badgeVariant: "default", badgeLabel: "Resolved", badgeClass: "bg-success text-white", time: timeAgo(r.resolved_at!), message: `${rpt} marked as resolved`, read: false });
-                    }
-
-                    if (notifs.length >= 10) break;
+                if (highSeverityCount > 0) {
+                    notifs.push({ id: "today-high", badgeVariant: "destructive", badgeLabel: "High", time: "today", message: `${highSeverityCount} high-severity report${highSeverityCount > 1 ? "s" : ""} logged today`, read: false });
+                }
+                if (pendingCount > 0) {
+                    notifs.push({ id: "today-pending", badgeVariant: "secondary", badgeLabel: "Pending", time: "today", message: `${pendingCount} report${pendingCount > 1 ? "s" : ""} awaiting assignment today`, read: false });
+                }
+                if (resolvedCount > 0) {
+                    notifs.push({ id: "today-resolved", badgeVariant: "default", badgeLabel: "Resolved", badgeClass: "bg-success text-white", time: "today", message: `${resolvedCount} report${resolvedCount > 1 ? "s" : ""} resolved today`, read: false });
+                }
+                if (totalToday > 0 && highSeverityCount === 0 && pendingCount === 0 && resolvedCount === 0) {
+                    notifs.push({ id: "today-total", badgeVariant: "secondary", badgeLabel: "Info", time: "today", message: `${totalToday} report${totalToday > 1 ? "s" : ""} logged today`, read: false });
                 }
 
                 setNotifications(notifs);
