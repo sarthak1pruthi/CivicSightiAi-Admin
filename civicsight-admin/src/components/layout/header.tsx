@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 const pageTitles: Record<string, { title: string; description: string }> = {
     "/dashboard": {
@@ -160,6 +161,34 @@ export function Header() {
             }
         }
         loadNotifications();
+
+        // ─── Realtime: listen for new worker comment notifications ───
+        const channel = supabase
+            .channel("header-notifications")
+            .on(
+                "postgres_changes",
+                { event: "INSERT", schema: "public", table: "notifications" },
+                (payload: { new: { id: number; message: string; created_at: string; type: string } }) => {
+                    const row = payload.new;
+                    setNotifications((prev) => [
+                        {
+                            id: `wc-${row.id}`,
+                            badgeVariant: "default",
+                            badgeLabel: "Comment",
+                            badgeClass: "bg-blue-500 text-white",
+                            time: timeAgo(row.created_at),
+                            message: row.message,
+                            read: false,
+                        },
+                        ...prev,
+                    ].slice(0, 15));
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     const pageInfo = pageTitles[pathname] || {
