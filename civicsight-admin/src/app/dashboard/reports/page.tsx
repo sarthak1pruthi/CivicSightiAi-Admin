@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
     Search,
     Filter,
@@ -18,7 +18,21 @@ import {
     Loader2,
     AlertTriangle,
     ImageIcon,
+    XCircle,
+    MessageSquare,
+    ZoomIn,
+    ZoomOut,
+    X,
+    FileSpreadsheet,
+    CheckSquare,
+    Square,
+    MinusSquare,
+    SearchX,
 } from "lucide-react";
+import { toast } from "sonner";
+import { APIProvider, Map as GoogleMap, AdvancedMarker } from "@vis.gl/react-google-maps";
+
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,11 +62,13 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
 import { useSearchParams } from "next/navigation";
 import {
     fetchReports,
@@ -94,6 +110,63 @@ function getSeverityLabel(severity: number | null): string {
     if (severity >= 4) return "High";
     if (severity >= 3) return "Medium";
     return "Low";
+}
+
+// Category icon mapping based on category name / group
+function getCategoryIcon(categoryName?: string, categoryGroup?: string): string {
+    const name = (categoryName || "").toLowerCase();
+    const group = (categoryGroup || "").toLowerCase();
+
+    // Specific category icons
+    const categoryIcons: Record<string, string> = {
+        pothole: "🕳️",
+        "road crack & surface damage": "🛣️",
+        "sidewalk & curb damage": "🚶",
+        "faded road markings": "🚧",
+        "damaged road sign": "🪧",
+        "damaged traffic signal": "🚦",
+        "water leak": "💧",
+        "flooding & standing water": "🌊",
+        "blocked catch basin": "🔲",
+        "manhole issue": "⚠️",
+        "overflowing litter bin": "🗑️",
+        "illegal dumping": "🚮",
+        graffiti: "🎨",
+        "debris on road": "⚠️",
+        "fallen tree or branch": "🌳",
+        "dead or hazardous tree": "🪵",
+        "tree root damage": "🌿",
+        "damaged playground equipment": "🛝",
+        "damaged park amenity": "🏞️",
+        "damaged bus shelter": "🚏",
+        "dead animal": "🐾",
+        "snow or ice on road": "❄️",
+        "snow or ice on sidewalk": "🧊",
+        "property standards violation": "🏚️",
+        "unsafe construction site": "🏗️",
+        "abandoned vehicle": "🚗",
+        "electrical hazard": "⚡",
+        "damaged utility box": "📦",
+        "accessibility barrier": "♿",
+    };
+
+    if (categoryIcons[name]) return categoryIcons[name];
+
+    // Fallback to group icons
+    const groupIcons: Record<string, string> = {
+        "roads & transportation": "🛣️",
+        "water & drainage": "💧",
+        "waste & cleanliness": "🗑️",
+        "trees & green spaces": "🌳",
+        "parks & public spaces": "🏞️",
+        "winter maintenance": "❄️",
+        "property & safety": "🏠",
+        "utilities & infrastructure": "⚡",
+    };
+
+    if (groupIcons[group]) return groupIcons[group];
+
+    return "📋";
 }
 
 function getPriorityFromSeverity(severity: number | null): string {
@@ -139,6 +212,55 @@ export default function ReportsPage() {
     const [assignPriority, setAssignPriority] = useState<AssignmentPriority>("normal");
     const [assignNote, setAssignNote] = useState("");
     const [assigning, setAssigning] = useState(false);
+    const [rejectDialog, setRejectDialog] = useState<ReportWithDetails | null>(null);
+    const [rejectNote, setRejectNote] = useState("");
+    const [rejecting, setRejecting] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+    // Image lightbox state
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+    const [isPanning, setIsPanning] = useState(false);
+    const panStart = useRef({ x: 0, y: 0 });
+    const offsetStart = useRef({ x: 0, y: 0 });
+
+    const openLightbox = (url: string) => {
+        setLightboxUrl(url);
+        setZoomLevel(1);
+        setPanOffset({ x: 0, y: 0 });
+    };
+
+    const closeLightbox = () => {
+        setLightboxUrl(null);
+        setZoomLevel(1);
+        setPanOffset({ x: 0, y: 0 });
+    };
+
+    const handleLightboxWheel = (e: React.WheelEvent) => {
+        e.preventDefault();
+        setZoomLevel((prev) => Math.min(5, Math.max(0.5, prev + (e.deltaY < 0 ? 0.3 : -0.3))));
+    };
+
+    const handleLightboxPointerDown = (e: React.PointerEvent) => {
+        if (zoomLevel <= 1) return;
+        setIsPanning(true);
+        panStart.current = { x: e.clientX, y: e.clientY };
+        offsetStart.current = { ...panOffset };
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    };
+
+    const handleLightboxPointerMove = (e: React.PointerEvent) => {
+        if (!isPanning) return;
+        setPanOffset({
+            x: offsetStart.current.x + (e.clientX - panStart.current.x),
+            y: offsetStart.current.y + (e.clientY - panStart.current.y),
+        });
+    };
+
+    const handleLightboxPointerUp = () => {
+        setIsPanning(false);
+    };
 
     const loadData = useCallback(async () => {
         try {
@@ -211,12 +333,45 @@ export default function ReportsPage() {
         in_progress: baseReports.filter((r) => r.status === "in_progress").length,
         resolved: baseReports.filter((r) => r.status === "resolved").length,
         closed: baseReports.filter((r) => r.status === "closed").length,
+        rejected: baseReports.filter((r) => r.status === "rejected").length,
+    };
+
+    // Bulk selection helpers
+    const toggleSelect = (id: string) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === paginatedReports.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(paginatedReports.map((r) => r.id)));
+        }
+    };
+
+    const handleBulkStatus = async (newStatus: ReportStatus) => {
+        const ids = [...selectedIds];
+        try {
+            await Promise.all(ids.map((id) => updateReportStatusDb(id, newStatus)));
+            setReports((prev) =>
+                prev.map((r) => (ids.includes(r.id) ? { ...r, status: newStatus } : r))
+            );
+            toast.success(`${ids.length} report${ids.length > 1 ? "s" : ""} marked as ${newStatus.replace("_", " ")}`);
+            setSelectedIds(new Set());
+        } catch (err) {
+            toast.error("Failed to update some reports");
+        }
     };
 
     // Update report status
-    const handleUpdateStatus = async (reportId: string, newStatus: ReportStatus) => {
+    const handleUpdateStatus = async (reportId: string, newStatus: ReportStatus, rejectionNote?: string) => {
+        const report = reports.find((r) => r.id === reportId);
         try {
-            await updateReportStatusDb(reportId, newStatus);
+            await updateReportStatusDb(reportId, newStatus, rejectionNote);
             setReports((prev) =>
                 prev.map((r) => (r.id === reportId ? { ...r, status: newStatus } : r))
             );
@@ -224,8 +379,24 @@ export default function ReportsPage() {
                 setSelectedReport((prev) => (prev ? { ...prev, status: newStatus } : null));
                 setDetailStatus(newStatus);
             }
+            toast.success(`RPT-${report?.report_number || ""} marked as ${newStatus.replace("_", " ")}`);
         } catch (err) {
-            console.error("Failed to update status:", err);
+            toast.error(`Failed to update report status`);
+        }
+    };
+
+    // Reject report with note
+    const handleRejectReport = async () => {
+        if (!rejectDialog || !rejectNote.trim()) return;
+        try {
+            setRejecting(true);
+            await handleUpdateStatus(rejectDialog.id, "rejected", rejectNote.trim());
+            setRejectDialog(null);
+            setRejectNote("");
+        } catch (err) {
+            toast.error("Failed to reject report");
+        } finally {
+            setRejecting(false);
         }
     };
 
@@ -282,6 +453,29 @@ export default function ReportsPage() {
         doc.save(`civicsight-reports-${new Date().toISOString().slice(0, 10)}.pdf`);
     };
 
+    // Export as CSV
+    const handleExportCSV = () => {
+        const headers = ["ID", "Description", "Category", "Severity", "Status", "Confidence", "Citizen", "Reported"];
+        const rows = filteredReports.map((r) => [
+            `RPT-${r.report_number}`,
+            `"${(r.description || "").replace(/"/g, '""')}"`,
+            r.category?.name || r.ai_category_name || "N/A",
+            getSeverityLabel(r.ai_severity),
+            r.status.replace("_", " "),
+            `${(r.ai_confidence || 0).toFixed(0)}%`,
+            r.citizen?.full_name || "Unknown",
+            new Date(r.reported_at).toLocaleDateString(),
+        ]);
+        const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `civicsight-reports-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     // Assign worker handler
     const handleAssignWorker = async (workerId: string) => {
         if (!assignDialog || !adminId) return;
@@ -289,11 +483,12 @@ export default function ReportsPage() {
             setAssigning(true);
             await assignWorkerToReport(assignDialog.id, workerId, adminId, assignPriority, assignNote);
             await loadData();
+            toast.success(`Worker assigned to RPT-${assignDialog.report_number}`);
             setAssignDialog(null);
             setAssignPriority("normal");
             setAssignNote("");
         } catch (err) {
-            console.error("Failed to assign worker:", err);
+            toast.error(err instanceof Error ? err.message : "Failed to assign worker");
         } finally {
             setAssigning(false);
         }
@@ -342,7 +537,7 @@ export default function ReportsPage() {
                         {status === "all" ? "All Reports" : status.replace("_", " ")}
                         <Badge
                             variant="secondary"
-                            className="ml-1.5 text-[10px] px-1.5 py-0 min-w-[20px] justify-center"
+                            className="ml-1.5 text-[10px] px-1.5 py-0 min-w-5 justify-center"
                         >
                             {count}
                         </Badge>
@@ -371,7 +566,7 @@ export default function ReportsPage() {
                                 value={categoryFilter}
                                 onValueChange={(v) => handleFilterChange(setCategoryFilter, v)}
                             >
-                                <SelectTrigger className="w-[140px] h-9 text-xs">
+                                <SelectTrigger className="w-35 h-9 text-xs">
                                     <SelectValue placeholder="Category" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -385,7 +580,7 @@ export default function ReportsPage() {
                                 value={severityFilter}
                                 onValueChange={(v) => handleFilterChange(setSeverityFilter, v)}
                             >
-                                <SelectTrigger className="w-[120px] h-9 text-xs">
+                                <SelectTrigger className="w-30 h-9 text-xs">
                                     <SelectValue placeholder="Severity" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -397,19 +592,52 @@ export default function ReportsPage() {
                                 </SelectContent>
                             </Select>
                             <Separator orientation="vertical" className="h-6" />
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-9 text-xs gap-1.5"
-                                onClick={handleExport}
-                            >
-                                <Download className="w-3.5 h-3.5" />
-                                Export
-                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm" className="h-9 text-xs gap-1.5">
+                                        <Download className="w-3.5 h-3.5" />
+                                        Export
+                                        <ChevronDown className="w-3 h-3" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={handleExport}>
+                                        <Download className="w-3.5 h-3.5 mr-2" />
+                                        Export as PDF
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={handleExportCSV}>
+                                        <FileSpreadsheet className="w-3.5 h-3.5 mr-2" />
+                                        Export as CSV
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Bulk Action Bar */}
+            {selectedIds.size > 0 && (
+                <Card className="border-primary/30 bg-primary/5">
+                    <CardContent className="p-3 flex items-center gap-3">
+                        <CheckSquare className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium">{selectedIds.size} report{selectedIds.size > 1 ? "s" : ""} selected</span>
+                        <Separator orientation="vertical" className="h-5" />
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleBulkStatus("in_progress")}>
+                            Mark In Progress
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleBulkStatus("resolved")}>
+                            Mark Resolved
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleBulkStatus("closed")}>
+                            Mark Closed
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs ml-auto" onClick={() => setSelectedIds(new Set())}>
+                            Clear Selection
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Reports Table */}
             <Card className="border-border/50">
@@ -417,7 +645,16 @@ export default function ReportsPage() {
                     <Table>
                         <TableHeader>
                             <TableRow className="hover:bg-transparent border-border/50">
-                                <TableHead className="text-xs font-medium text-muted-foreground h-10 pl-6">
+                                <TableHead className="w-10 pl-4">
+                                    <button onClick={toggleSelectAll} className="text-muted-foreground hover:text-foreground transition-colors">
+                                        {selectedIds.size === paginatedReports.length && paginatedReports.length > 0
+                                            ? <CheckSquare className="w-4 h-4" />
+                                            : selectedIds.size > 0
+                                                ? <MinusSquare className="w-4 h-4" />
+                                                : <Square className="w-4 h-4" />}
+                                    </button>
+                                </TableHead>
+                                <TableHead className="text-xs font-medium text-muted-foreground h-10">
                                     <div className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors">
                                         Report ID <ArrowUpDown className="w-3 h-3" />
                                     </div>
@@ -451,16 +688,39 @@ export default function ReportsPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
+                            {paginatedReports.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={10} className="h-60">
+                                        <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                                            <SearchX className="w-10 h-10 opacity-40" />
+                                            <div className="text-center">
+                                                <p className="text-sm font-medium">No reports found</p>
+                                                <p className="text-xs mt-1">Try adjusting your filters or search query</p>
+                                            </div>
+                                            {(statusFilter !== "all" || categoryFilter !== "all" || severityFilter !== "all" || searchQuery) && (
+                                                <Button variant="outline" size="sm" className="text-xs h-7 mt-1" onClick={() => {
+                                                    setStatusFilter("all"); setCategoryFilter("all"); setSeverityFilter("all"); setSearchQuery(""); setCurrentPage(1);
+                                                }}>Clear All Filters</Button>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            )}
                             {paginatedReports.map((report) => (
                                 <TableRow
                                     key={report.id}
-                                    className="cursor-pointer border-border/30 hover:bg-muted/50 transition-colors group"
+                                    className={`cursor-pointer border-border/30 hover:bg-muted/50 transition-colors group ${selectedIds.has(report.id) ? "bg-primary/5" : ""}`}
                                     onClick={() => openDetail(report)}
                                 >
-                                    <TableCell className="text-xs font-mono font-medium text-primary pl-6">
+                                    <TableCell className="pl-4" onClick={(e) => e.stopPropagation()}>
+                                        <button onClick={() => toggleSelect(report.id)} className="text-muted-foreground hover:text-foreground transition-colors">
+                                            {selectedIds.has(report.id) ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
+                                        </button>
+                                    </TableCell>
+                                    <TableCell className="text-xs font-mono font-medium text-primary">
                                         RPT-{report.report_number}
                                     </TableCell>
-                                    <TableCell className="text-sm font-medium max-w-[220px] truncate">
+                                    <TableCell className="text-sm font-medium max-w-55 truncate">
                                         {report.description.slice(0, 60)}{report.description.length > 60 ? "..." : ""}
                                     </TableCell>
                                     <TableCell className="text-xs text-muted-foreground">
@@ -495,19 +755,21 @@ export default function ReportsPage() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-12 h-1.5 rounded-full bg-muted overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full bg-primary transition-all"
-                                                    style={{
-                                                        width: `${(report.ai_confidence || 0)}%`,
-                                                    }}
-                                                />
-                                            </div>
-                                            <span className="text-[10px] text-muted-foreground font-mono">
-                                                {(report.ai_confidence || 0).toFixed(0)}%
-                                            </span>
-                                        </div>
+                                        {(() => {
+                                            const conf = report.ai_confidence || 0;
+                                            const color = conf >= 80 ? "text-success" : conf >= 50 ? "text-warning" : "text-destructive";
+                                            const barColor = conf >= 80 ? "bg-success" : conf >= 50 ? "bg-warning" : "bg-destructive";
+                                            return (
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-12 h-1.5 rounded-full bg-muted overflow-hidden">
+                                                        <div className={`h-full rounded-full ${barColor} transition-all`} style={{ width: `${conf}%` }} />
+                                                    </div>
+                                                    <span className={`text-[10px] font-mono font-medium ${color}`}>
+                                                        {conf.toFixed(0)}%
+                                                    </span>
+                                                </div>
+                                            );
+                                        })()}
                                     </TableCell>
                                     <TableCell className="text-xs text-muted-foreground">
                                         {new Date(report.reported_at).toLocaleDateString("en-US", {
@@ -539,15 +801,17 @@ export default function ReportsPage() {
                                                     <Eye className="w-3.5 h-3.5 mr-2" />
                                                     View Details
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setAssignDialog(report);
-                                                    }}
-                                                >
-                                                    <UserPlus className="w-3.5 h-3.5 mr-2" />
-                                                    Assign Worker
-                                                </DropdownMenuItem>
+                                                {report.status !== "rejected" && (
+                                                    <DropdownMenuItem
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setAssignDialog(report);
+                                                        }}
+                                                    >
+                                                        <UserPlus className="w-3.5 h-3.5 mr-2" />
+                                                        Assign Worker
+                                                    </DropdownMenuItem>
+                                                )}
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem
                                                     onClick={(e) => {
@@ -572,8 +836,17 @@ export default function ReportsPage() {
                                                     }}
                                                 >
                                                     Mark as Closed
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
+                                                </DropdownMenuItem>                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    className="text-destructive focus:text-destructive"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setRejectDialog(report);
+                                                    }}
+                                                >
+                                                    <XCircle className="w-3.5 h-3.5 mr-2" />
+                                                    Reject Report
+                                                </DropdownMenuItem>                                            </DropdownMenuContent>
                                         </DropdownMenu>
                                     </TableCell>
                                 </TableRow>
@@ -656,6 +929,9 @@ export default function ReportsPage() {
                                 <DialogTitle className="text-lg mt-2">
                                     {selectedReport.category?.name || selectedReport.ai_category_name || "Report"} — #{selectedReport.report_number}
                                 </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    Details for report {selectedReport.report_number}
+                                </DialogDescription>
                             </DialogHeader>
 
                             <Tabs defaultValue="details" className="mt-2">
@@ -672,6 +948,38 @@ export default function ReportsPage() {
                                 </TabsList>
 
                                 <TabsContent value="details" className="space-y-4 mt-4">
+                                    {/* Report Image / Category Icon */}
+                                    <div className="w-full h-48 rounded-lg overflow-hidden bg-muted/30 border border-border/50">
+                                        {selectedReport.images && selectedReport.images.length > 0 ? (
+                                            <img
+                                                src={selectedReport.images[0].image_url}
+                                                alt={`Report #${selectedReport.report_number}`}
+                                                className="w-full h-full object-cover cursor-zoom-in hover:opacity-90 transition-opacity"
+                                                onClick={() => openLightbox(selectedReport.images![0].image_url)}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                                                <span className="text-4xl">{getCategoryIcon(selectedReport.category?.name, selectedReport.category?.category_group)}</span>
+                                                <p className="text-xs">{selectedReport.category?.name || selectedReport.ai_category_name || "Uncategorized"}</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Additional images */}
+                                    {selectedReport.images && selectedReport.images.length > 1 && (
+                                        <div className="flex gap-2 overflow-x-auto pb-1">
+                                            {selectedReport.images.map((img, i) => (
+                                                <img
+                                                    key={img.id}
+                                                    src={img.thumbnail_url || img.image_url}
+                                                    alt={`Report image ${i + 1}`}
+                                                    className="w-16 h-16 rounded-md object-cover cursor-zoom-in border border-border/50 hover:border-primary/50 transition-colors shrink-0"
+                                                    onClick={() => openLightbox(img.image_url)}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+
                                     {/* Description */}
                                     <div>
                                         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
@@ -683,6 +991,28 @@ export default function ReportsPage() {
                                     </div>
 
                                     <Separator />
+
+                                    {/* Mini Map */}
+                                    {selectedReport.location?.latitude && selectedReport.location?.longitude && GOOGLE_MAPS_API_KEY && (
+                                        <div className="w-full h-36 rounded-lg overflow-hidden border border-border/50">
+                                            <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+                                                <GoogleMap
+                                                    defaultCenter={{ lat: Number(selectedReport.location.latitude), lng: Number(selectedReport.location.longitude) }}
+                                                    defaultZoom={15}
+                                                    gestureHandling="none"
+                                                    disableDefaultUI
+                                                    mapId="civicsight-detail-map"
+                                                    style={{ width: "100%", height: "100%" }}
+                                                >
+                                                    <AdvancedMarker position={{ lat: Number(selectedReport.location.latitude), lng: Number(selectedReport.location.longitude) }}>
+                                                        <div className="w-6 h-6 rounded-full bg-destructive border-2 border-white shadow-lg flex items-center justify-center">
+                                                            <MapPin className="w-3.5 h-3.5 text-white" />
+                                                        </div>
+                                                    </AdvancedMarker>
+                                                </GoogleMap>
+                                            </APIProvider>
+                                        </div>
+                                    )}
 
                                     {/* Info Grid */}
                                     <div className="grid grid-cols-2 gap-4">
@@ -747,13 +1077,50 @@ export default function ReportsPage() {
                                         </div>
                                     )}
 
+                                    {/* Admin / Worker Notes */}
+                                    {(selectedReport.assignment?.assignment_note || selectedReport.assignment?.worker_note) && (
+                                        <div className="space-y-2">
+                                            {selectedReport.assignment?.assignment_note && (
+                                                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/50 border border-border/50">
+                                                    <MessageSquare className="w-3.5 h-3.5 text-muted-foreground mt-0.5" />
+                                                    <div>
+                                                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Admin Note</p>
+                                                        <p className="text-xs mt-0.5">{selectedReport.assignment.assignment_note}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {selectedReport.assignment?.worker_note && (
+                                                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/50 border border-border/50">
+                                                    <MessageSquare className="w-3.5 h-3.5 text-muted-foreground mt-0.5" />
+                                                    <div>
+                                                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Worker Note</p>
+                                                        <p className="text-xs mt-0.5">{selectedReport.assignment.worker_note}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Rejection info */}
+                                    {selectedReport.status === "rejected" && (
+                                        <div className="flex items-start gap-2 p-2.5 rounded-lg bg-destructive/5 border border-destructive/20">
+                                            <XCircle className="w-4 h-4 text-destructive mt-0.5" />
+                                            <div>
+                                                <p className="text-xs font-medium text-destructive">Report Rejected</p>
+                                                {selectedReport.assignment?.assignment_note && (
+                                                    <p className="text-[11px] text-muted-foreground mt-0.5">{selectedReport.assignment.assignment_note}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Actions */}
                                     <div className="flex items-center gap-2">
                                         <Select
                                             value={detailStatus}
                                             onValueChange={(v) => setDetailStatus(v)}
                                         >
-                                            <SelectTrigger className="w-[160px] h-9 text-xs">
+                                            <SelectTrigger className="w-40 h-9 text-xs">
                                                 <SelectValue placeholder="Update Status" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -761,12 +1128,14 @@ export default function ReportsPage() {
                                                 <SelectItem value="in_progress">In Progress</SelectItem>
                                                 <SelectItem value="resolved">Resolved</SelectItem>
                                                 <SelectItem value="closed">Closed</SelectItem>
+                                                <SelectItem value="rejected">Rejected</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <Button
                                             variant="outline"
                                             size="sm"
                                             className="text-xs h-9 gap-1.5"
+                                            disabled={selectedReport.status === "rejected"}
                                             onClick={() => {
                                                 setAssignDialog(selectedReport);
                                             }}
@@ -788,7 +1157,7 @@ export default function ReportsPage() {
                                     <Card className="bg-primary/5 border-primary/20">
                                         <CardContent className="p-4">
                                             <div className="flex items-start gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                                                     <span className="text-sm">🤖</span>
                                                 </div>
                                                 <div className="space-y-2">
@@ -805,23 +1174,65 @@ export default function ReportsPage() {
 
                                     <div className="grid grid-cols-3 gap-3">
                                         <Card className="border-border/50">
-                                            <CardContent className="p-3 text-center">
+                                            <CardContent className="p-3 flex flex-col items-center">
                                                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
                                                     Confidence
                                                 </p>
-                                                <p className="text-xl font-bold text-primary mt-1">
-                                                    {(selectedReport.ai_confidence || 0).toFixed(0)}%
-                                                </p>
+                                                {(() => {
+                                                    const conf = selectedReport.ai_confidence || 0;
+                                                    const color = conf >= 80 ? "stroke-success" : conf >= 50 ? "stroke-warning" : "stroke-destructive";
+                                                    const textColor = conf >= 80 ? "text-success" : conf >= 50 ? "text-warning" : "text-destructive";
+                                                    const circumference = 2 * Math.PI * 28;
+                                                    const offset = circumference - (conf / 100) * circumference;
+                                                    return (
+                                                        <div className="relative w-16 h-16 mt-1">
+                                                            <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
+                                                                <circle cx="32" cy="32" r="28" fill="none" strokeWidth="5" className="stroke-muted" />
+                                                                <circle
+                                                                    cx="32" cy="32" r="28" fill="none" strokeWidth="5"
+                                                                    className={`${color} transition-all duration-1000 ease-out`}
+                                                                    strokeLinecap="round"
+                                                                    strokeDasharray={circumference}
+                                                                    strokeDashoffset={offset}
+                                                                />
+                                                            </svg>
+                                                            <span className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${textColor}`}>
+                                                                {conf.toFixed(0)}%
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </CardContent>
                                         </Card>
                                         <Card className="border-border/50">
-                                            <CardContent className="p-3 text-center">
+                                            <CardContent className="p-3 flex flex-col items-center">
                                                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
                                                     Severity
                                                 </p>
-                                                <p className="text-xl font-bold mt-1">
-                                                    {selectedReport.ai_severity || 0}/5
-                                                </p>
+                                                {(() => {
+                                                    const sev = selectedReport.ai_severity || 0;
+                                                    const color = sev >= 4 ? "stroke-destructive" : sev >= 3 ? "stroke-warning" : "stroke-success";
+                                                    const textColor = sev >= 4 ? "text-destructive" : sev >= 3 ? "text-warning" : "text-success";
+                                                    const circumference = 2 * Math.PI * 28;
+                                                    const offset = circumference - (sev / 5) * circumference;
+                                                    return (
+                                                        <div className="relative w-16 h-16 mt-1">
+                                                            <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
+                                                                <circle cx="32" cy="32" r="28" fill="none" strokeWidth="5" className="stroke-muted" />
+                                                                <circle
+                                                                    cx="32" cy="32" r="28" fill="none" strokeWidth="5"
+                                                                    className={`${color} transition-all duration-1000 ease-out`}
+                                                                    strokeLinecap="round"
+                                                                    strokeDasharray={circumference}
+                                                                    strokeDashoffset={offset}
+                                                                />
+                                                            </svg>
+                                                            <span className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${textColor}`}>
+                                                                {sev}/5
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </CardContent>
                                         </Card>
                                         <Card className="border-border/50">
@@ -829,9 +1240,12 @@ export default function ReportsPage() {
                                                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
                                                     Category
                                                 </p>
-                                                <p className="text-sm font-medium mt-2">
-                                                    {selectedReport.category?.name || selectedReport.ai_category_name || "N/A"}
-                                                </p>
+                                                <div className="mt-2 flex flex-col items-center gap-1">
+                                                    <span className="text-xl">{getCategoryIcon(selectedReport.category?.name, selectedReport.category?.category_group)}</span>
+                                                    <p className="text-xs font-medium">
+                                                        {selectedReport.category?.name || selectedReport.ai_category_name || "N/A"}
+                                                    </p>
+                                                </div>
                                             </CardContent>
                                         </Card>
                                     </div>
@@ -870,16 +1284,22 @@ export default function ReportsPage() {
                                                 time: new Date(selectedReport.resolved_at).toLocaleString(),
                                                 dot: "bg-success",
                                             }] : []),
+                                            ...(selectedReport.status === "rejected" && selectedReport.assignment?.rejected_at ? [{
+                                                action: "Report rejected",
+                                                by: "Admin",
+                                                time: new Date(selectedReport.assignment.rejected_at).toLocaleString(),
+                                                dot: "bg-destructive",
+                                            }] : []),
                                         ].map((item, i, arr) => (
                                             <div
                                                 key={i}
                                                 className="flex items-start gap-3 relative"
                                             >
                                                 <div
-                                                    className={`w-2.5 h-2.5 rounded-full ${item.dot} mt-1.5 flex-shrink-0 ring-4 ring-background`}
+                                                    className={`w-2.5 h-2.5 rounded-full ${item.dot} mt-1.5 shrink-0 ring-4 ring-background`}
                                                 />
                                                 {i < arr.length - 1 && (
-                                                    <div className="absolute left-[4px] top-4 w-[1px] h-[calc(100%+8px)] bg-border" />
+                                                    <div className="absolute left-1 top-4 w-px h-[calc(100%+8px)] bg-border" />
                                                 )}
                                                 <div>
                                                     <p className="text-sm font-medium">{item.action}</p>
@@ -897,16 +1317,55 @@ export default function ReportsPage() {
                 </DialogContent>
             </Dialog>
 
+            {/* Reject Report Dialog */}
+            <Dialog open={!!rejectDialog} onOpenChange={(open) => { if (!open) { setRejectDialog(null); setRejectNote(""); } }}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle className="text-base flex items-center gap-2">
+                            <XCircle className="w-4 h-4 text-destructive" />
+                            Reject Report
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-muted-foreground mt-1">
+                            {rejectDialog ? <>Rejecting <span className="font-medium text-foreground">RPT-{rejectDialog.report_number}</span></> : "Reject a report"}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 mt-2">
+                        <div className="space-y-1.5">
+                            <Label className="text-xs">Rejection Reason</Label>
+                            <textarea
+                                className="w-full min-h-20 rounded-md border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                                placeholder="Provide a reason for rejecting this report..."
+                                value={rejectNote}
+                                onChange={(e) => setRejectNote(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => { setRejectDialog(null); setRejectNote(""); }}>
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                className="text-xs h-8"
+                                disabled={!rejectNote.trim() || rejecting}
+                                onClick={handleRejectReport}
+                            >
+                                {rejecting ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <XCircle className="w-3 h-3 mr-1" />}
+                                Reject Report
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             {/* Assign Worker Dialog */}
             <Dialog open={!!assignDialog} onOpenChange={(open) => !open && setAssignDialog(null)}>
                 <DialogContent className="max-w-sm">
                     <DialogHeader>
                         <DialogTitle className="text-base">Assign Worker</DialogTitle>
-                        {assignDialog && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                                Assign a field worker to <span className="font-medium text-foreground">RPT-{assignDialog.report_number}</span>
-                            </p>
-                        )}
+                        <DialogDescription className="text-xs text-muted-foreground mt-1">
+                            {assignDialog ? <>Assign a field worker to <span className="font-medium text-foreground">RPT-{assignDialog.report_number}</span></> : "Assign a worker to a report"}
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 mt-2">
                         <Select value={assignPriority} onValueChange={(v) => setAssignPriority(v as AssignmentPriority)}>
@@ -927,7 +1386,7 @@ export default function ReportsPage() {
                             onChange={(e) => setAssignNote(e.target.value)}
                         />
                         <Separator />
-                        <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                        <div className="space-y-2 max-h-70 overflow-y-auto">
                             {workers.length === 0 && (
                                 <p className="text-xs text-muted-foreground text-center py-4">No workers found</p>
                             )}
@@ -958,6 +1417,77 @@ export default function ReportsPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Image Lightbox */}
+            {lightboxUrl && (
+                <div
+                    className="fixed inset-0 z-100 bg-black/90 flex items-center justify-center"
+                    onClick={(e) => { if (e.target === e.currentTarget) closeLightbox(); }}
+                >
+                    {/* Controls */}
+                    <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-white hover:bg-white/20 h-9 w-9 p-0"
+                            onClick={() => setZoomLevel((z) => Math.min(5, z + 0.5))}
+                        >
+                            <ZoomIn className="w-5 h-5" />
+                        </Button>
+                        <span className="text-white/70 text-xs font-mono min-w-12 text-center">
+                            {Math.round(zoomLevel * 100)}%
+                        </span>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-white hover:bg-white/20 h-9 w-9 p-0"
+                            onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.5))}
+                        >
+                            <ZoomOut className="w-5 h-5" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-white hover:bg-white/20 h-9 w-9 p-0 ml-2"
+                            onClick={closeLightbox}
+                        >
+                            <X className="w-5 h-5" />
+                        </Button>
+                    </div>
+
+                    {/* Image container */}
+                    <div
+                        className="w-full h-full flex items-center justify-center overflow-hidden select-none"
+                        onWheel={handleLightboxWheel}
+                        onPointerDown={handleLightboxPointerDown}
+                        onPointerMove={handleLightboxPointerMove}
+                        onPointerUp={handleLightboxPointerUp}
+                        style={{ cursor: zoomLevel > 1 ? (isPanning ? "grabbing" : "grab") : "zoom-in" }}
+                    >
+                        <img
+                            src={lightboxUrl}
+                            alt="Report full view"
+                            className="max-w-none transition-transform duration-150 ease-out"
+                            style={{
+                                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+                            }}
+                            draggable={false}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (zoomLevel <= 1) {
+                                    setZoomLevel(2.5);
+                                    setPanOffset({ x: 0, y: 0 });
+                                }
+                            }}
+                        />
+                    </div>
+
+                    {/* Hint */}
+                    <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/50 text-xs">
+                        Scroll to zoom · Click image to zoom in · Drag to pan · Click outside to close
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

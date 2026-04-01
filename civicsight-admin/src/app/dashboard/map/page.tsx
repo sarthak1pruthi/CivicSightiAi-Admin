@@ -67,6 +67,21 @@ const statusColors: Record<string, string> = {
 const DEFAULT_CENTER = { lat: 43.6532, lng: -79.3832 };
 const DEFAULT_ZOOM = 14;
 
+// Component to hide POIs after map loads (styles prop is ignored when mapId is set)
+function HidePOIs() {
+    const map = useMap();
+    useEffect(() => {
+        if (!map) return;
+        map.setOptions({
+            styles: [
+                { featureType: "poi", elementType: "all", stylers: [{ visibility: "off" }] },
+                { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+            ],
+        });
+    }, [map]);
+    return null;
+}
+
 function ReportMarker({
     report,
     isSelected,
@@ -93,12 +108,12 @@ function ReportMarker({
                             style={{ backgroundColor: color, transform: "scale(2)" }}
                         />
                     )}
-                {/* Pin dot */}
+                {/* Pin dot – 1.5× size */}
                 <div
-                    className="w-4 h-4 rounded-full border-2 border-white shadow-lg transition-transform group-hover:scale-150"
+                    className="w-6 h-6 rounded-full border-2 border-white shadow-lg transition-transform group-hover:scale-150"
                     style={{
                         backgroundColor: color,
-                        boxShadow: `0 0 8px ${color}80`,
+                        boxShadow: `0 0 10px ${color}80`,
                     }}
                 />
             </div>
@@ -208,7 +223,7 @@ export default function MapPage() {
                                 {severity}
                                 <Badge
                                     variant="secondary"
-                                    className="text-[9px] px-1 py-0 min-w-[16px] justify-center"
+                                    className="text-[9px] px-1 py-0 min-w-4 justify-center"
                                 >
                                     {count}
                                 </Badge>
@@ -236,9 +251,11 @@ export default function MapPage() {
                                 streetViewControl={false}
                                 mapTypeControl={true}
                                 fullscreenControl={true}
+                                clickableIcons={false}
                                 style={{ width: "100%", height: "100%" }}
                                 onClick={() => setSelectedReport(null)}
                             >
+                                <HidePOIs />
                                 {filteredPins.map((report) => (
                                     <ReportMarker
                                         key={report.id}
@@ -257,7 +274,7 @@ export default function MapPage() {
                                         onCloseClick={() => setSelectedReport(null)}
                                         pixelOffset={[0, -20]}
                                     >
-                                        <div className="p-1 min-w-[200px] font-sans">
+                                        <div className="p-1 min-w-50 font-sans">
                                             <div className="flex items-center gap-2 mb-1.5">
                                                 <span className="text-[10px] font-mono font-semibold text-blue-600">
                                                     RPT-{selectedReport.reportNumber}

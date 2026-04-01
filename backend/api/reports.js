@@ -92,7 +92,7 @@ module.exports = cors(async function handler(req, res) {
 
   if (req.method === "PATCH") {
     try {
-      const { reportId, status } = req.body;
+      const { reportId, status, rejectionNote } = req.body;
       if (!reportId || !status) return res.status(400).json({ error: "reportId and status required" });
 
       const updates = { status, updated_at: new Date().toISOString() };
@@ -106,11 +106,51 @@ module.exports = cors(async function handler(req, res) {
       // Sync assignment status with report status
       if (status === "resolved" || status === "closed") {
         const assignmentUpdate = {
-          assignment_status: status,
+          assignment_status: status === "resolved" ? "completed" : status,
           last_update_at: new Date().toISOString(),
         };
         if (status === "resolved") assignmentUpdate.completed_at = new Date().toISOString();
         await supabase.from("worker_assignments").update(assignmentUpdate).eq("report_id", reportId);
+      }
+
+      // Handle rejection — remove assigned worker and delete assignment
+      if (status === "rejected") {
+        // Check if a worker was assigned
+        const { data: existingAssignment } = await supabase
+          .from("worker_assignments")
+          .select("worker_id")
+          .eq("report_id", reportId)
+          .single();
+
+        if (existingAssignment?.worker_id) {
+          // Decrement worker's current task count
+          const { data: profile } = await supabase
+            .from("worker_profiles")
+            .select("current_task_count")
+            .eq("worker_id", existingAssignment.worker_id)
+            .single();
+
+          if (profile && profile.current_task_count > 0) {
+            await supabase
+              .from("worker_profiles")
+              .update({
+                current_task_count: profile.current_task_count - 1,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("worker_id", existingAssignment.worker_id);
+          }
+
+          // Delete the assignment row
+          await supabase.from("worker_assignments").delete().eq("report_id", reportId);
+        }
+
+        // Clear worker reference on the report and store rejection note
+        const rejectionUpdate = {
+          assigned_worker_id: null,
+          assigned_at: null,
+          rejection_note: rejectionNote || null,
+        };
+        await supabase.from("reports").update(rejectionUpdate).eq("id", reportId);
       }
 
       return res.json({ success: true });

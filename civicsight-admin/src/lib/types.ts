@@ -13,7 +13,7 @@ export type ReportStatus =
   | "closed"
   | "rejected";
 
-export type AssignmentStatus = "assigned" | "in_progress" | "resolved" | "rejected";
+export type AssignmentStatus = "assigned" | "in_progress" | "completed" | "rejected";
 export type AssignmentPriority = "low" | "normal" | "high" | "critical";
 
 export interface DbUser {

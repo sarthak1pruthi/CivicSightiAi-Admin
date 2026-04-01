@@ -89,6 +89,10 @@ function timeAgo(iso: string): string {
 export function Header() {
     const pathname = usePathname();
     const [darkMode, setDarkMode] = useState(false);
+
+    useEffect(() => {
+        setDarkMode(document.documentElement.classList.contains("dark"));
+    }, []);
     const [searchQuery, setSearchQuery] = useState("");
     const [searchFocused, setSearchFocused] = useState(false);
     const [searchResults, setSearchResults] = useState<{ type: string; label: string; href: string }[]>([]);

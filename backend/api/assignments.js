@@ -12,22 +12,50 @@ module.exports = cors(async function handler(req, res) {
       return res.status(400).json({ error: "reportId, workerId, and adminId required" });
     }
 
-    // 1. Create/upsert assignment
-    const { error: assignErr } = await supabase
+    // Block assignment if report is rejected
+    const { data: report } = await supabase
+      .from("reports")
+      .select("status")
+      .eq("id", reportId)
+      .single();
+
+    if (report?.status === "rejected") {
+      return res.status(400).json({ error: "Cannot assign a worker to a rejected report" });
+    }
+
+    // 1. Check for existing assignment on this report
+    const { data: existing } = await supabase
       .from("worker_assignments")
-      .upsert(
-        {
-          report_id: reportId,
-          worker_id: workerId,
-          assigned_by: adminId,
-          assignment_status: "assigned",
-          assignment_priority: priority,
-          assigned_at: new Date().toISOString(),
-          assignment_note: note || null,
-          last_update_at: new Date().toISOString(),
-        },
-        { onConflict: "report_id" }
-      );
+      .select("id")
+      .eq("report_id", reportId)
+      .maybeSingle();
+
+    const assignmentData = {
+      report_id: reportId,
+      worker_id: workerId,
+      assigned_by: adminId,
+      assignment_status: "assigned",
+      assignment_priority: priority,
+      assigned_at: new Date().toISOString(),
+      assignment_note: note || null,
+      last_update_at: new Date().toISOString(),
+    };
+
+    let assignErr;
+    if (existing) {
+      // Update existing assignment
+      const result = await supabase
+        .from("worker_assignments")
+        .update(assignmentData)
+        .eq("id", existing.id);
+      assignErr = result.error;
+    } else {
+      // Insert new assignment
+      const result = await supabase
+        .from("worker_assignments")
+        .insert(assignmentData);
+      assignErr = result.error;
+    }
     if (assignErr) return res.status(500).json({ error: assignErr.message });
 
     // 2. Update report status
