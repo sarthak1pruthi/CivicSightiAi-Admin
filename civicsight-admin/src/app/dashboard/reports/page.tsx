@@ -79,6 +79,8 @@ import {
     updateReportStatus as updateReportStatusDb,
     assignWorkerToReport,
     getCurrentAdmin,
+    fetchComments,
+    postComment,
 } from "@/lib/queries";
 import type {
     ReportWithDetails,
@@ -87,6 +89,7 @@ import type {
     ReportStatus,
     AssignmentPriority,
 } from "@/lib/types";
+import type { Comment } from "@/lib/queries";
 
 const statusColors: Record<string, string> = {
     pending: "bg-warning/10 text-warning border-warning/20",
@@ -230,6 +233,13 @@ export default function ReportsPage() {
     const panStart = useRef({ x: 0, y: 0 });
     const offsetStart = useRef({ x: 0, y: 0 });
 
+    // Comments state
+    const [comments, setComments] = useState<Comment[]>([]);
+    const [commentText, setCommentText] = useState("");
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [sendingComment, setSendingComment] = useState(false);
+    const commentsEndRef = useRef<HTMLDivElement>(null);
+
     const openLightbox = (url: string) => {
         setLightboxUrl(url);
         setZoomLevel(1);
@@ -266,6 +276,47 @@ export default function ReportsPage() {
     const handleLightboxPointerUp = () => {
         setIsPanning(false);
     };
+
+    // ─── Comments helpers ─────────────────────────────────
+    const loadComments = useCallback(async (reportId: string) => {
+        setLoadingComments(true);
+        try {
+            const data = await fetchComments(reportId);
+            setComments(data);
+            setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        } catch {
+            toast.error("Failed to load comments");
+        } finally {
+            setLoadingComments(false);
+        }
+    }, []);
+
+    const handleSendComment = async () => {
+        if (!commentText.trim() || !selectedReport || !adminId) return;
+        setSendingComment(true);
+        try {
+            const newComment = await postComment(selectedReport.id, adminId, commentText.trim());
+            setComments((prev) => [...prev, newComment]);
+            setCommentText("");
+            setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        } catch {
+            toast.error("Failed to send comment");
+        } finally {
+            setSendingComment(false);
+        }
+    };
+
+    // Auto-refresh comments every 60 seconds when dialog is open
+    useEffect(() => {
+        if (!selectedReport) {
+            setComments([]);
+            setCommentText("");
+            return;
+        }
+        loadComments(selectedReport.id);
+        const interval = setInterval(() => loadComments(selectedReport.id), 60_000);
+        return () => clearInterval(interval);
+    }, [selectedReport, loadComments]);
 
     const loadData = useCallback(async () => {
         try {
@@ -988,7 +1039,7 @@ export default function ReportsPage() {
                             </DialogHeader>
 
                             <Tabs defaultValue="details" className="mt-2">
-                                <TabsList className="grid w-full grid-cols-3 h-9">
+                                <TabsList className="grid w-full grid-cols-4 h-9">
                                     <TabsTrigger value="details" className="text-xs">
                                         Details
                                     </TabsTrigger>
@@ -997,6 +1048,9 @@ export default function ReportsPage() {
                                     </TabsTrigger>
                                     <TabsTrigger value="activity" className="text-xs">
                                         Activity
+                                    </TabsTrigger>
+                                    <TabsTrigger value="comments" className="text-xs">
+                                        Comments {comments.length > 0 && `(${comments.length})`}
                                     </TabsTrigger>
                                 </TabsList>
 
@@ -1364,6 +1418,95 @@ export default function ReportsPage() {
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+                                </TabsContent>
+
+                                <TabsContent value="comments" className="mt-4">
+                                    <div className="flex flex-col h-[400px]">
+                                        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                                            {loadingComments ? (
+                                                <div className="flex items-center justify-center h-full">
+                                                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                                                </div>
+                                            ) : comments.length === 0 ? (
+                                                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                                                    <MessageSquare className="w-8 h-8 mb-2 opacity-50" />
+                                                    <p className="text-sm">No comments yet</p>
+                                                    <p className="text-xs">Start a conversation about this report</p>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {comments.map((c) => {
+                                                        const isAdmin = c.user_id === adminId;
+                                                        const time = c.created_at
+                                                            ? new Date(c.created_at).toLocaleString(undefined, {
+                                                                  month: "short",
+                                                                  day: "numeric",
+                                                                  hour: "2-digit",
+                                                                  minute: "2-digit",
+                                                              })
+                                                            : "";
+                                                        return (
+                                                            <div
+                                                                key={c.id}
+                                                                className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}
+                                                            >
+                                                                <div
+                                                                    className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${
+                                                                        isAdmin
+                                                                            ? "bg-primary text-primary-foreground rounded-br-sm"
+                                                                            : "bg-muted rounded-bl-sm"
+                                                                    }`}
+                                                                >
+                                                                    {!isAdmin && (
+                                                                        <p className="text-[10px] font-semibold text-primary mb-0.5">
+                                                                            Worker
+                                                                        </p>
+                                                                    )}
+                                                                    <p className="whitespace-pre-wrap break-words">{c.content}</p>
+                                                                    <p
+                                                                        className={`text-[10px] mt-1 ${
+                                                                            isAdmin ? "text-primary-foreground/70" : "text-muted-foreground"
+                                                                        }`}
+                                                                    >
+                                                                        {time}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    <div ref={commentsEndRef} />
+                                                </>
+                                            )}
+                                        </div>
+                                        <Separator className="my-3" />
+                                        <div className="flex gap-2">
+                                            <Input
+                                                placeholder="Type a message..."
+                                                className="text-sm h-9"
+                                                value={commentText}
+                                                onChange={(e) => setCommentText(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" && !e.shiftKey) {
+                                                        e.preventDefault();
+                                                        handleSendComment();
+                                                    }
+                                                }}
+                                                disabled={sendingComment}
+                                            />
+                                            <Button
+                                                size="sm"
+                                                className="h-9 px-3"
+                                                disabled={!commentText.trim() || sendingComment}
+                                                onClick={handleSendComment}
+                                            >
+                                                {sendingComment ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <MessageSquare className="w-4 h-4" />
+                                                )}
+                                            </Button>
+                                        </div>
                                     </div>
                                 </TabsContent>
                             </Tabs>

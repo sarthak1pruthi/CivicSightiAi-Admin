@@ -59,6 +59,29 @@ export async function fetchCategories(): Promise<DbCategory[]> {
   return apiFetch<DbCategory[]>("/api/categories");
 }
 
+// ─── Comments ─────────────────────────────────────────────
+
+export interface Comment {
+  id: number;
+  report_id: string;
+  user_id: string;
+  content: string;
+  is_internal: boolean | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchComments(reportId: string): Promise<Comment[]> {
+  return apiFetch<Comment[]>(`/api/comments?report_id=${encodeURIComponent(reportId)}`);
+}
+
+export async function postComment(reportId: string, userId: string, content: string): Promise<Comment> {
+  return apiFetch<Comment>("/api/comments", {
+    method: "POST",
+    body: JSON.stringify({ report_id: reportId, user_id: userId, content }),
+  });
+}
+
 // ─── Dashboard Stats ──────────────────────────────────────
 
 export async function fetchDashboardStats() {
