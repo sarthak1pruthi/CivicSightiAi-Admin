@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, Mail, Lock, Eye, EyeOff, ArrowRight, AlertTriangle } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
@@ -53,8 +53,8 @@ export default function LoginPage() {
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-center px-16">
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/30">
-              <Shield className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 rounded-xl overflow-hidden shadow-lg shadow-primary/30">
+              <img src="/logo.png" alt="CivicSight AI" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">
@@ -103,8 +103,8 @@ export default function LoginPage() {
         <div className="w-full max-w-[380px]">
           {/* Mobile logo */}
           <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-lg overflow-hidden">
+              <img src="/logo.png" alt="CivicSight AI" className="w-full h-full object-contain" />
             </div>
             <div>
               <span className="text-lg font-bold">CivicSight AI</span>

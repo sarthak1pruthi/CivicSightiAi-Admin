@@ -16,6 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "CivicSight AI — Admin Portal",
   description: "Admin dashboard for managing civic reports, users, and operations for CivicSight AI",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

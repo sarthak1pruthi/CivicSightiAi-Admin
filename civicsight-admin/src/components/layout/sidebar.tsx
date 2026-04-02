@@ -9,7 +9,6 @@ import {
     Map,
     BarChart3,
     Settings,
-    Shield,
     ChevronLeft,
     LogOut,
     Bell,
@@ -88,8 +87,8 @@ export function Sidebar() {
         >
             {/* Logo */}
             <div className="flex items-center gap-3 px-4 h-16 flex-shrink-0">
-                <div className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-sidebar-primary to-sidebar-primary/70 shadow-lg shadow-sidebar-primary/20">
-                    <Shield className="w-5 h-5 text-sidebar-primary-foreground" />
+                <div className="relative flex items-center justify-center w-9 h-9 rounded-lg overflow-hidden shadow-lg shadow-sidebar-primary/20">
+                    <img src="/logo.png" alt="CivicSight AI" className="w-full h-full object-contain" />
                 </div>
                 {!collapsed && (
                     <div className="flex flex-col overflow-hidden">
