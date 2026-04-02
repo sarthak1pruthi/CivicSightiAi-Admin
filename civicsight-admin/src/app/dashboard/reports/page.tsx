@@ -90,6 +90,7 @@ import type {
     AssignmentPriority,
 } from "@/lib/types";
 import type { Comment } from "@/lib/queries";
+import { supabase } from "@/lib/supabase";
 
 const statusColors: Record<string, string> = {
     pending: "bg-warning/10 text-warning border-warning/20",
@@ -318,16 +319,41 @@ export default function ReportsPage() {
         }
     };
 
-    // Auto-refresh comments every 60 seconds when dialog is open
+    // Realtime subscription + 60s fallback poll when dialog is open
     useEffect(() => {
         if (!selectedReport) {
             setComments([]);
             setCommentText("");
             return;
         }
+
         loadComments(selectedReport.id);
+
+        // Realtime: fires immediately when a new comment is inserted
+        const channel = supabase
+            .channel(`comments:${selectedReport.id}`)
+            .on(
+                "postgres_changes",
+                {
+                    event: "INSERT",
+                    schema: "public",
+                    table: "comments",
+                    filter: `report_id=eq.${selectedReport.id}`,
+                },
+                () => {
+                    // Re-fetch to get author_name from the backend join
+                    loadComments(selectedReport.id);
+                }
+            )
+            .subscribe();
+
+        // Fallback poll every 60s in case Realtime drops
         const interval = setInterval(() => loadComments(selectedReport.id), 60_000);
-        return () => clearInterval(interval);
+
+        return () => {
+            supabase.removeChannel(channel);
+            clearInterval(interval);
+        };
     }, [selectedReport, loadComments]);
 
     const loadData = useCallback(async () => {
