@@ -1044,7 +1044,7 @@ export default function ReportsPage() {
                 open={!!selectedReport}
                 onOpenChange={(open) => !open && setSelectedReport(null)}
             >
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
                     {selectedReport && (
                         <>
                             <DialogHeader>
@@ -1150,8 +1150,8 @@ export default function ReportsPage() {
                                 </TabsList>
 
                                 {/* ── Images Tab ── side-by-side comparison ── */}
-                                <TabsContent value="images" className="space-y-4 mt-4">
-                                    <div className="grid grid-cols-2 gap-4">
+                                <TabsContent value="images" className="space-y-5 mt-4">
+                                    <div className="grid grid-cols-2 gap-6">
                                         {/* Citizen Report Image */}
                                         <div className="space-y-2">
                                             <div className="flex items-center gap-2">
@@ -1160,7 +1160,7 @@ export default function ReportsPage() {
                                                     Before — Citizen Report
                                                 </h4>
                                             </div>
-                                            <div className="h-64 rounded-lg overflow-hidden bg-muted/30 border-2 border-destructive/20">
+                                            <div className="h-80 rounded-lg overflow-hidden bg-muted/30 border-2 border-destructive/20">
                                                 {selectedReport.images && selectedReport.images.length > 0 ? (
                                                     <img
                                                         src={selectedReport.images[0].image_url}
@@ -1210,7 +1210,7 @@ export default function ReportsPage() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="h-64 rounded-lg overflow-hidden bg-muted/30 border-2 border-success/20">
+                                            <div className="h-80 rounded-lg overflow-hidden bg-muted/30 border-2 border-success/20">
                                                 {selectedReport.assignment?.proof_image_url ? (
                                                     <img
                                                         src={selectedReport.assignment.proof_image_url}
