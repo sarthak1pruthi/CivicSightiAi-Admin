@@ -1246,6 +1246,49 @@ export default function ReportsPage() {
                                         </div>
                                     )}
 
+                                    {/* Proof Image Comparison */}
+                                    {selectedReport.assignment?.proof_image_url && (
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                                Work Proof Comparison
+                                            </h4>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1.5">
+                                                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                                        Before (Citizen Report)
+                                                    </p>
+                                                    <div className="h-40 rounded-lg overflow-hidden bg-muted/30 border border-border/50">
+                                                        {selectedReport.images?.[0] ? (
+                                                            <img
+                                                                src={selectedReport.images[0].image_url}
+                                                                alt="Citizen report"
+                                                                className="w-full h-full object-cover cursor-zoom-in hover:opacity-90 transition-opacity"
+                                                                onClick={() => openLightbox(selectedReport.images![0].image_url)}
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                                                <ImageIcon className="w-6 h-6" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <p className="text-[10px] font-medium uppercase tracking-wider text-success">
+                                                        After (Worker Proof)
+                                                    </p>
+                                                    <div className="h-40 rounded-lg overflow-hidden bg-success/5 border border-success/20">
+                                                        <img
+                                                            src={selectedReport.assignment.proof_image_url}
+                                                            alt="Worker proof"
+                                                            className="w-full h-full object-cover cursor-zoom-in hover:opacity-90 transition-opacity"
+                                                            onClick={() => openLightbox(selectedReport.assignment!.proof_image_url!)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Rejection info */}
                                     {selectedReport.status === "rejected" && (
                                         <div className="flex items-start gap-2 p-2.5 rounded-lg bg-destructive/5 border border-destructive/20">

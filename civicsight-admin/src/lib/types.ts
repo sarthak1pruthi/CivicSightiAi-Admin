@@ -130,6 +130,7 @@ export interface DbWorkerAssignment {
   rejected_at: string | null;
   assignment_note: string | null;
   worker_note: string | null;
+  proof_image_url: string | null;
   last_update_at: string;
 }
 
