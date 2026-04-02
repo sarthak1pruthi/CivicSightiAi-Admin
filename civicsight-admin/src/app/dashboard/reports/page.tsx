@@ -292,15 +292,27 @@ export default function ReportsPage() {
     }, []);
 
     const handleSendComment = async () => {
-        if (!commentText.trim() || !selectedReport || !adminId) return;
+        if (!commentText.trim() || !selectedReport) return;
+        let currentAdminId = adminId;
+        if (!currentAdminId) {
+            // Retry fetching admin session
+            const admin = await getCurrentAdmin();
+            if (admin) {
+                setAdminId(admin.uid);
+                currentAdminId = admin.uid;
+            } else {
+                toast.error("Admin session expired. Please log in again.");
+                return;
+            }
+        }
         setSendingComment(true);
         try {
-            const newComment = await postComment(selectedReport.id, adminId, commentText.trim());
+            const newComment = await postComment(selectedReport.id, currentAdminId, commentText.trim());
             setComments((prev) => [...prev, newComment]);
             setCommentText("");
             setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-        } catch {
-            toast.error("Failed to send comment");
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Failed to send comment");
         } finally {
             setSendingComment(false);
         }
@@ -1437,7 +1449,8 @@ export default function ReportsPage() {
                                             ) : (
                                                 <>
                                                     {comments.map((c) => {
-                                                        const isAdmin = c.user_id === adminId;
+                                                        const isAdmin = c.author_role === "admin" || c.user_id === adminId;
+                                                        const displayName = c.author_name || (isAdmin ? "Admin" : "Worker");
                                                         const time = c.created_at
                                                             ? new Date(c.created_at).toLocaleString(undefined, {
                                                                   month: "short",
@@ -1460,7 +1473,7 @@ export default function ReportsPage() {
                                                                 >
                                                                     {!isAdmin && (
                                                                         <p className="text-[10px] font-semibold text-primary mb-0.5">
-                                                                            Worker
+                                                                            {displayName}
                                                                         </p>
                                                                     )}
                                                                     <p className="whitespace-pre-wrap break-words">{c.content}</p>

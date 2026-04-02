@@ -69,6 +69,8 @@ export interface Comment {
   is_internal: boolean | null;
   created_at: string;
   updated_at: string;
+  author_name?: string;
+  author_role?: string;
 }
 
 export async function fetchComments(reportId: string): Promise<Comment[]> {

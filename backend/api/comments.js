@@ -13,12 +13,20 @@ module.exports = cors(async function handler(req, res) {
     try {
       const { data, error } = await supabase
         .from("comments")
-        .select("*")
+        .select("*, users:user_id(full_name, role)")
         .eq("report_id", report_id)
         .order("created_at", { ascending: true });
 
       if (error) return res.status(500).json({ error: error.message });
-      return res.json(data || []);
+
+      // Flatten user info into each comment
+      const flat = (data || []).map((c) => ({
+        ...c,
+        author_name: c.users?.full_name || "Unknown",
+        author_role: c.users?.role || "unknown",
+        users: undefined,
+      }));
+      return res.json(flat);
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
