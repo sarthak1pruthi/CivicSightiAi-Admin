@@ -43,10 +43,25 @@ module.exports = cors(async function handler(req, res) {
     const totalWorkers = workers.length;
 
     const resolvedToday = reports.filter((r) => {
-      if (!r.resolved_at) return false;
-      const resolved = new Date(r.resolved_at);
-      resolved.setHours(0, 0, 0, 0);
-      return resolved.getTime() === today.getTime();
+      // Check resolved_at
+      if (r.resolved_at) {
+        const resolved = new Date(r.resolved_at);
+        resolved.setHours(0, 0, 0, 0);
+        if (resolved.getTime() === today.getTime()) return true;
+      }
+      // Check closed_at
+      if (r.closed_at) {
+        const closed = new Date(r.closed_at);
+        closed.setHours(0, 0, 0, 0);
+        if (closed.getTime() === today.getTime()) return true;
+      }
+      // Check completed status via updated_at
+      if (r.status === "completed" && r.updated_at) {
+        const updated = new Date(r.updated_at);
+        updated.setHours(0, 0, 0, 0);
+        if (updated.getTime() === today.getTime()) return true;
+      }
+      return false;
     }).length;
 
     const statusCounts = {};

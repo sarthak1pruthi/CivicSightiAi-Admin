@@ -145,7 +145,7 @@ export default function DashboardPage() {
     const kpiCards = [
         { title: "Total Reports", value: stats.totalReports.toLocaleString(), icon: FileText, color: "text-primary", bgColor: "bg-primary/10" },
         { title: "Active Citizens", value: stats.activeCitizens.toLocaleString(), icon: Users, color: "text-info", bgColor: "bg-info/10" },
-        { title: "Resolved Today", value: stats.resolvedToday.toString(), icon: CheckCircle2, color: "text-success", bgColor: "bg-success/10" },
+        { title: "Completed Today", value: stats.resolvedToday.toString(), icon: CheckCircle2, color: "text-success", bgColor: "bg-success/10" },
         { title: "Avg Resolution", value: `${stats.avgResolutionHours.toFixed(1)}h`, icon: Clock, color: "text-warning", bgColor: "bg-warning/10" },
     ];
 
