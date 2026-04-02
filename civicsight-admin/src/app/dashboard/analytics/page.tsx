@@ -480,10 +480,20 @@ export default function AnalyticsPage() {
     const contentRef = useRef<HTMLDivElement>(null);
 
     const handleExportPDF = async () => {
-        if (!contentRef.current) return;
-        const html2canvas = (await import("html2canvas")).default;
-        const { default: jsPDF } = await import("jspdf");
-        const stamp = new Date().toISOString().slice(0, 10);
+        try {
+            if (!contentRef.current) {
+                console.error("PDF Export: contentRef is null");
+                return;
+            }
+            const html2canvasModule = await import("html2canvas");
+            const html2canvas: (element: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement> =
+                typeof html2canvasModule === "function" ? html2canvasModule : (html2canvasModule as any).default;
+            if (typeof html2canvas !== "function") {
+                console.error("PDF Export: html2canvas is not a function", html2canvasModule);
+                return;
+            }
+            const { default: jsPDF } = await import("jspdf");
+            const stamp = new Date().toISOString().slice(0, 10);
 
         const canvas = await html2canvas(contentRef.current, {
             scale: 2,
@@ -522,6 +532,10 @@ export default function AnalyticsPage() {
             }
         }
         doc.save(`civicsight-${activeTab}-analytics-${stamp}.pdf`);
+        } catch (err) {
+            console.error("PDF Export failed:", err);
+            alert("PDF export failed: " + (err instanceof Error ? err.message : String(err)));
+        }
     };
 
     if (loading) {

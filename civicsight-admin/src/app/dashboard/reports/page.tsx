@@ -538,7 +538,8 @@ export default function ReportsPage() {
     // Export as PDF (screen capture)
     const handleExport = async () => {
         if (!contentRef.current) return;
-        const html2canvas = (await import("html2canvas")).default;
+        const html2canvasModule = await import("html2canvas");
+        const html2canvas = html2canvasModule.default || html2canvasModule;
         const { default: jsPDF } = await import("jspdf");
 
         const canvas = await html2canvas(contentRef.current, {
