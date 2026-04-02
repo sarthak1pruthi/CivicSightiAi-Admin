@@ -103,6 +103,26 @@ module.exports = cors(async function handler(req, res) {
       const { error } = await supabase.from("reports").update(updates).eq("id", reportId);
       if (error) return res.status(500).json({ error: error.message });
 
+      // Notify admin of status change
+      try {
+        const { data: reportRow } = await supabase
+          .from("reports")
+          .select("report_number")
+          .eq("id", reportId)
+          .single();
+
+        const rn = reportRow?.report_number || "?";
+        const statusLabel = status.replace("_", " ");
+        await supabase.from("notifications").insert({
+          type: "status_change",
+          message: `Report #${rn} status changed to ${statusLabel}`,
+          report_id: reportId,
+          created_at: new Date().toISOString(),
+        });
+      } catch (_) {
+        // non-critical — don't block the response
+      }
+
       // Sync assignment status with report status
       if (status === "resolved" || status === "closed") {
         const assignmentUpdate = {

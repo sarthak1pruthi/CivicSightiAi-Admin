@@ -74,6 +74,7 @@ type NotifType = {
     time: string;
     message: string;
     read: boolean;
+    reportId?: string;
 };
 
 function timeAgo(iso: string): string {
@@ -183,17 +184,19 @@ export function Header() {
             .on(
                 "postgres_changes",
                 { event: "INSERT", schema: "public", table: "notifications" },
-                (payload: { new: { id: number; message: string; created_at: string; type: string } }) => {
+                (payload: { new: { id: number; message: string; created_at: string; type: string; report_id?: string } }) => {
                     const row = payload.new;
+                    const isStatusChange = row.type === "status_change";
                     setNotifications((prev) => [
                         {
-                            id: `wc-${row.id}`,
-                            badgeVariant: "default",
-                            badgeLabel: "Comment",
-                            badgeClass: "bg-blue-500 text-white",
+                            id: `notif-${row.id}`,
+                            badgeVariant: isStatusChange ? "secondary" : "default",
+                            badgeLabel: isStatusChange ? "Status" : "Comment",
+                            badgeClass: isStatusChange ? "bg-orange-500 text-white" : "bg-blue-500 text-white",
                             time: timeAgo(row.created_at),
                             message: row.message,
                             read: false,
+                            reportId: row.report_id,
                         },
                         ...prev,
                     ].slice(0, 15));
@@ -387,7 +390,9 @@ export function Header() {
                                                 n.id === notif.id ? { ...n, read: true } : n
                                             )
                                         );
-                                        if (notif.id === "today-high") {
+                                        if (notif.reportId) {
+                                            router.push("/dashboard/reports");
+                                        } else if (notif.id === "today-high") {
                                             router.push("/dashboard/reports?severity=high");
                                         } else if (notif.id === "today-pending") {
                                             router.push("/dashboard/reports?status=pending");
